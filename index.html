@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オセロ</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { justify-content: center; }
+
+    .title-screen {
+      text-align: center;
+      animation: fadeIn 0.8s ease both;
+    }
+
+    .title-screen h1 {
+      font-size: 4.5rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      margin-bottom: 0.1em;
+      background: linear-gradient(135deg, #fff 0%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .title-screen .subtitle {
+      font-size: 1.1rem;
+      color: var(--text-dim);
+      letter-spacing: 0.35em;
+      margin-bottom: 3em;
+    }
+
+    .section-label {
+      font-size: 1.05rem;
+      color: var(--text-dim);
+      margin-bottom: 1.2em;
+    }
+
+    .difficulty-row {
+      display: flex;
+      gap: 1.2em;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 2.5em;
+    }
+
+    .diff-card {
+      position: relative;
+      width: 170px;
+      padding: 1.5em 1.2em;
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 18px;
+      background: var(--bg-card);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      color: var(--text);
+      backdrop-filter: blur(4px);
+    }
+    .diff-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 35px rgba(233,69,96,0.25);
+    }
+    .diff-card.easy:hover   { border-color: var(--green); box-shadow: 0 12px 35px rgba(46,204,113,0.25); }
+    .diff-card.normal:hover { border-color: var(--blue);  box-shadow: 0 12px 35px rgba(52,152,219,0.25); }
+    .diff-card.hard:hover   { border-color: var(--accent); }
+
+    .diff-card .name {
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 0.3em;
+    }
+    .diff-card .stars {
+      font-size: 1rem;
+      margin-bottom: 0.3em;
+    }
+    .diff-card.easy   .stars { color: var(--green); }
+    .diff-card.normal .stars { color: var(--blue); }
+    .diff-card.hard   .stars { color: var(--accent); }
+    .diff-card .desc {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+
+    .bottom-links {
+      display: flex;
+      justify-content: center;
+      gap: 1em;
+    }
+
+    /* Stats mini-preview */
+    .stats-preview {
+      display: flex;
+      gap: 1.5em;
+      justify-content: center;
+      margin-bottom: 2em;
+      flex-wrap: wrap;
+    }
+    .stat-mini {
+      text-align: center;
+    }
+    .stat-mini .num {
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+    .stat-mini .label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    @media (max-width: 520px) {
+      .title-screen h1 { font-size: 3rem; }
+      .diff-card { width: 140px; padding: 1.2em 1em; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="title-screen">
+  <h1>OTHELLO</h1>
+  <div class="subtitle">— リバーシ —</div>
+
+  <!-- Stats preview -->
+  <div class="stats-preview" id="stats-preview"></div>
+
+  <div class="section-label">CPUの強さを選んで対戦開始</div>
+  <div class="difficulty-row">
+    <a class="diff-card easy" href="game.html?d=easy">
+      <div class="name">易しい</div>
+      <div class="stars">★☆☆</div>
+      <div class="desc">ランダムに打つ</div>
+    </a>
+    <a class="diff-card normal" href="game.html?d=normal">
+      <div class="name">普通</div>
+      <div class="stars">★★☆</div>
+      <div class="desc">戦略的に打つ</div>
+    </a>
+    <a class="diff-card hard" href="game.html?d=hard">
+      <div class="name">強い</div>
+      <div class="stars">★★★</div>
+      <div class="desc">先読みして打つ</div>
+    </a>
+  </div>
+
+  <div class="bottom-links">
+    <a class="btn" href="history.html">📊 対戦履歴・成績</a>
+  </div>
+</div>
+
+<script src="storage.js"></script>
+<script>
+  // Show quick stats if any matches exist
+  const stats = Storage.getStats();
+  const el = document.getElementById('stats-preview');
+  if (stats.total > 0) {
+    el.innerHTML = `
+      <div class="stat-mini">
+        <div class="num">${stats.total}</div>
+        <div class="label">対戦数</div>
+      </div>
+      <div class="stat-mini">
+        <div class="num" style="color:var(--gold)">${stats.wins}</div>
+        <div class="label">勝ち</div>
+      </div>
+      <div class="stat-mini">
+        <div class="num" style="color:var(--accent)">${stats.losses}</div>
+        <div class="label">負け</div>
+      </div>
+      <div class="stat-mini">
+        <div class="num">${stats.winRate}%</div>
+        <div class="label">勝率</div>
+      </div>
+    `;
+  }
+</script>
+</body>
+</html>

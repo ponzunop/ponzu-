@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オセロ — 対戦履歴</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { justify-content: flex-start; }
+
+    .page { animation: fadeIn 0.5s ease both; }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 1em;
+    }
+
+    /* Overall Stats Row */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 0.8em;
+      margin-bottom: 2em;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 1.2em 0.5em;
+    }
+    .stat-card .num {
+      font-size: 2rem;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+    .stat-card .label {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 0.3em;
+    }
+
+    /* Per-difficulty breakdown */
+    .diff-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.8em;
+      margin-bottom: 2em;
+    }
+
+    .diff-stat-card {
+      padding: 1em 1.2em;
+    }
+    .diff-stat-card .head {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 0.8em;
+      font-weight: 700;
+    }
+    .diff-stat-card .row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.88rem;
+      padding: 0.25em 0;
+    }
+    .diff-stat-card .row .val { font-weight: 700; }
+
+    /* Win-rate bar */
+    .winrate-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.08);
+      margin-top: 0.6em;
+      overflow: hidden;
+    }
+    .winrate-bar .fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    .winrate-bar .fill.easy   { background: var(--green); }
+    .winrate-bar .fill.normal { background: var(--blue); }
+    .winrate-bar .fill.hard   { background: var(--accent); }
+
+    /* Match history table */
+    .history-section { margin-bottom: 2em; }
+
+    .history-table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    thead {
+      background: rgba(255,255,255,0.04);
+    }
+    th {
+      padding: 0.8em 1em;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    td {
+      padding: 0.7em 1em;
+      border-top: 1px solid rgba(255,255,255,0.04);
+      white-space: nowrap;
+    }
+    tbody tr:hover {
+      background: rgba(255,255,255,0.03);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3em 1em;
+      color: var(--text-dim);
+      font-size: 1rem;
+    }
+
+    .bottom-actions {
+      display: flex;
+      gap: 0.8em;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1em;
+    }
+
+    /* Confirm dialog */
+    .confirm-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+    }
+    .confirm-overlay.show { display: flex; }
+    .confirm-box {
+      background: var(--bg-mid);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 2em 2.5em;
+      text-align: center;
+    }
+    .confirm-box p {
+      margin-bottom: 1.5em;
+      font-size: 1.05rem;
+    }
+    .confirm-box .buttons {
+      display: flex; gap: 0.8em; justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<div class="nav">
+  <a class="logo" href="index.html">OTHELLO</a>
+  <div class="nav-spacer"></div>
+  <a href="index.html">タイトル</a>
+  <a href="history.html" class="active">履歴</a>
+</div>
+
+<div class="page">
+  <h2>📊 成績サマリー</h2>
+
+  <!-- Overall stats -->
+  <div class="stats-grid" id="overall-stats"></div>
+
+  <!-- Per-difficulty -->
+  <h2>難易度別</h2>
+  <div class="diff-stats" id="diff-stats"></div>
+
+  <!-- Match history -->
+  <div class="history-section">
+    <h2>🕹️ 対戦履歴</h2>
+    <div id="history-content"></div>
+  </div>
+
+  <div class="bottom-actions">
+    <a class="btn" href="index.html">🏠 タイトルへ</a>
+    <button class="btn danger" id="clear-btn" onclick="showClearConfirm()">🗑️ 履歴を削除</button>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <p>⚠️ すべての対戦履歴を削除しますか？<br><small style="color:var(--text-dim)">この操作は取り消せません</small></p>
+    <div class="buttons">
+      <button class="btn danger" onclick="doClear()">削除する</button>
+      <button class="btn" onclick="hideClearConfirm()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script src="storage.js"></script>
+<script>
+function render() {
+  const history = Storage.getHistory();
+  const stats = Storage.getStats();
+
+  // ===== Overall Stats =====
+  document.getElementById('overall-stats').innerHTML = `
+    <div class="card stat-card">
+      <div class="num">${stats.total}</div>
+      <div class="label">対戦数</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num" style="color:var(--gold)">${stats.wins}</div>
+      <div class="label">勝ち</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num" style="color:var(--accent)">${stats.losses}</div>
+      <div class="label">負け</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num">${stats.draws}</div>
+      <div class="label">引分</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num" style="color:var(--green)">${stats.winRate}%</div>
+      <div class="label">勝率</div>
+    </div>
+  `;
+
+  // ===== Per-Difficulty Stats =====
+  const diffs = ['easy', 'normal', 'hard'];
+  const diffLabels = { easy: '易しい', normal: '普通', hard: '強い' };
+  const diffColors = { easy: 'var(--green)', normal: 'var(--blue)', hard: 'var(--accent)' };
+
+  let diffHtml = '';
+  for (const d of diffs) {
+    const s = Storage.getStats(d);
+    diffHtml += `
+      <div class="card diff-stat-card">
+        <div class="head">
+          <span class="badge ${d}">${diffLabels[d]}</span>
+        </div>
+        <div class="row"><span>対戦数</span><span class="val">${s.total}</span></div>
+        <div class="row"><span>勝ち / 負け / 引分</span><span class="val">${s.wins} / ${s.losses} / ${s.draws}</span></div>
+        <div class="row"><span>勝率</span><span class="val" style="color:${diffColors[d]}">${s.winRate}%</span></div>
+        <div class="winrate-bar">
+          <div class="fill ${d}" style="width:${s.winRate}%"></div>
+        </div>
+      </div>
+    `;
+  }
+  document.getElementById('diff-stats').innerHTML = diffHtml;
+
+  // ===== Match History Table =====
+  const content = document.getElementById('history-content');
+  const clearBtn = document.getElementById('clear-btn');
+
+  if (history.length === 0) {
+    content.innerHTML = `<div class="empty-state">まだ対戦履歴がありません。<br>対戦してみましょう！</div>`;
+    clearBtn.style.display = 'none';
+    return;
+  }
+  clearBtn.style.display = '';
+
+  let rows = '';
+  for (const m of history) {
+    const date = new Date(m.date);
+    const dateStr = `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+    const min = Math.floor((m.durationSec || 0) / 60);
+    const sec = String((m.durationSec || 0) % 60).padStart(2, '0');
+
+    rows += `
+      <tr>
+        <td>${dateStr}</td>
+        <td><span class="badge ${m.difficulty}">${Storage.diffLabel(m.difficulty)}</span></td>
+        <td><span class="badge ${m.result}">${Storage.resultLabel(m.result)}</span></td>
+        <td>⚫ ${m.playerScore} — ${m.cpuScore} ⚪</td>
+        <td>${min}:${sec}</td>
+      </tr>
+    `;
+  }
+
+  content.innerHTML = `
+    <div class="history-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>難易度</th>
+            <th>結果</th>
+            <th>スコア</th>
+            <th>時間</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function showClearConfirm() {
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+function hideClearConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('show');
+}
+function doClear() {
+  Storage.clearHistory();
+  hideClearConfirm();
+  render();
+}
+
+render();
+</script>
+
+</body>
+</html>
+

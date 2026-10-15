@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オセロ — 対戦</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { justify-content: flex-start; }
+
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1em 1em 2em;
+      animation: fadeIn 0.5s ease both;
+    }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: min(82vw, 500px);
+      margin-bottom: 0.8em;
+      gap: 0.8em;
+    }
+
+    .turn-indicator {
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.35em 1em;
+      border-radius: 8px;
+      background: var(--bg-card);
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .game-info {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1em;
+      margin-bottom: 0.6em;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
+    .game-controls {
+      margin-top: 1em;
+      display: flex;
+      gap: 0.7em;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 520px) {
+      .game-header { flex-wrap: wrap; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<div class="nav">
+  <span class="logo">OTHELLO</span>
+  <div class="nav-spacer"></div>
+  <a href="index.html">タイトル</a>
+  <a href="history.html">履歴</a>
+</div>
+
+<div class="game-area">
+  <div class="game-info">
+    <span>難易度: <span class="badge" id="diff-badge"></span></span>
+    <span>⏱ <span id="timer">0:00</span></span>
+  </div>
+
+  <div class="game-header">
+    <div class="score-box" id="score-black">
+      <div class="stone-icon black"></div>
+      <div>
+        <div class="score-label">あなた (黒)</div>
+        <div class="score-num" id="black-count">2</div>
+      </div>
+    </div>
+    <div class="turn-indicator" id="turn-text">あなたのターン</div>
+    <div class="score-box" id="score-white">
+      <div class="stone-icon white"></div>
+      <div>
+        <div class="score-label">CPU (白)</div>
+        <div class="score-num" id="white-count">2</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="board-wrapper">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="game-controls">
+    <button class="btn" onclick="resetGame()">🔄 もう一度</button>
+    <a class="btn" href="index.html">🏠 タイトルへ</a>
+  </div>
+</div>
+
+<!-- Result Overlay -->
+<div class="overlay" id="result-overlay">
+  <div class="result-card">
+    <h2 id="result-title"></h2>
+    <div class="result-score" id="result-score"></div>
+    <div class="result-time" id="result-time"></div>
+    <div class="buttons">
+      <button class="btn primary" onclick="resetGame()">🔄 もう一度</button>
+      <a class="btn" href="index.html">🏠 タイトルへ</a>
+      <a class="btn" href="history.html">📊 戦績を見る</a>
+    </div>
+  </div>
+</div>
+
+<script src="storage.js"></script>
+<script src="game.js"></script>
+<script>
+// ===== State =====
+const params = new URLSearchParams(location.search);
+const difficulty = params.get('d') || 'normal';
+
+let board, currentPlayer, gameOver, cpuThinking;
+let timerInterval, startTime, elapsedSec;
+
+// ===== Init =====
+function init() {
+  // Set difficulty badge
+  const badge = document.getElementById('diff-badge');
+  badge.textContent = Storage.diffLabel(difficulty);
+  badge.className = `badge ${difficulty}`;
+
+  resetGame();
+}
+
+function resetGame() {
+  // Close overlay
+  document.getElementById('result-overlay').classList.remove('show');
+
+  board = createBoard();
+  currentPlayer = BLACK;
+  gameOver = false;
+  cpuThinking = false;
+
+  // Reset timer
+  clearInterval(timerInterval);
+  startTime = Date.now();
+  elapsedSec = 0;
+  timerInterval = setInterval(updateTimer, 1000);
+
+  renderBoard();
+}
+
+// ===== Timer =====
+function updateTimer() {
+  if (gameOver) return;
+  elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+  const min = Math.floor(elapsedSec / 60);
+  const sec = String(elapsedSec % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${min}:${sec}`;
+}
+
+// ===== Rendering =====
+function renderBoard() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+  const validMoves = gameOver ? [] : getValidMoves(board, currentPlayer);
+  const validSet = new Set(validMoves.map(m => `${m.r},${m.c}`));
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (currentPlayer === BLACK && validSet.has(`${r},${c}`) && !cpuThinking) {
+        cell.classList.add('hint');
+      }
+      if (board[r][c] !== EMPTY) {
+        const piece = document.createElement('div');
+        piece.className = `piece ${board[r][c] === BLACK ? 'black' : 'white'}`;
+        cell.appendChild(piece);
+      }
+      cell.addEventListener('click', () => onCellClick(r, c));
+      el.appendChild(cell);
+    }
+  }
+
+  const { black, white } = countPieces(board);
+  document.getElementById('black-count').textContent = black;
+  document.getElementById('white-count').textContent = white;
+
+  document.getElementById('score-black').classList.toggle('active', currentPlayer === BLACK && !gameOver);
+  document.getElementById('score-white').classList.toggle('active', currentPlayer === WHITE && !gameOver);
+
+  if (!gameOver) {
+    document.getElementById('turn-text').textContent =
+      currentPlayer === BLACK ? 'あなたのターン' : 'CPU思考中…';
+  }
+}
+
+function animateMove(r, c, flips, player, callback) {
+  const cells = document.querySelectorAll('#board .cell');
+  const idx = r * 8 + c;
+  const cell = cells[idx];
+
+  // Place stone
+  const piece = document.createElement('div');
+  piece.className = `piece ${player === BLACK ? 'black' : 'white'} placing`;
+  cell.appendChild(piece);
+
+  // Flip stones with stagger
+  setTimeout(() => {
+    for (let i = 0; i < flips.length; i++) {
+      const [fr, fc] = flips[i];
+      const flipCell = cells[fr * 8 + fc];
+      const oldPiece = flipCell.querySelector('.piece');
+      if (oldPiece) {
+        setTimeout(() => {
+          oldPiece.classList.add('flipping');
+          setTimeout(() => {
+            oldPiece.className = `piece ${player === BLACK ? 'black' : 'white'}`;
+          }, 190);
+        }, i * 55);
+      }
+    }
+    setTimeout(callback, flips.length * 55 + 280);
+  }, 350);
+}
+
+// ===== Game Flow =====
+function onCellClick(r, c) {
+  if (gameOver || currentPlayer !== BLACK || cpuThinking) return;
+
+  const flips = getFlips(board, r, c, BLACK);
+  if (flips.length === 0) return;
+
+  const result = applyMove(board, r, c, BLACK);
+  board = result.board;
+  currentPlayer = WHITE;
+  renderBoard();
+
+  animateMove(r, c, result.flips, BLACK, () => {
+    advanceTurn();
+  });
+}
+
+function advanceTurn() {
+  // Check if current player can move
+  if (getValidMoves(board, currentPlayer).length === 0) {
+    if (getValidMoves(board, -currentPlayer).length === 0) {
+      endGame();
+      return;
+    }
+    // Pass
+    currentPlayer = -currentPlayer;
+    if (getValidMoves(board, currentPlayer).length === 0) {
+      endGame();
+      return;
+    }
+  }
+
+  renderBoard();
+
+  if (currentPlayer === WHITE && !gameOver) {
+    cpuThinking = true;
+    renderBoard();
+    setTimeout(cpuTurn, 350);
+  }
+}
+
+function cpuTurn() {
+  const move = getAiMove(board, difficulty);
+  if (!move) {
+    cpuThinking = false;
+    currentPlayer = BLACK;
+    advanceTurn();
+    return;
+  }
+
+  const result = applyMove(board, move.r, move.c, WHITE);
+  board = result.board;
+  currentPlayer = BLACK;
+  renderBoard();
+
+  animateMove(move.r, move.c, result.flips, WHITE, () => {
+    cpuThinking = false;
+    advanceTurn();
+  });
+}
+
+function endGame() {
+  gameOver = true;
+  clearInterval(timerInterval);
+  updateTimer();
+  renderBoard();
+
+  const { black, white } = countPieces(board);
+
+  let resultKey, title, titleColor;
+  if (black > white) {
+    resultKey = 'win';
+    title = '🎉 あなたの勝ち！';
+    titleColor = '#f5c518';
+  } else if (white > black) {
+    resultKey = 'lose';
+    title = '😢 CPUの勝ち…';
+    titleColor = '#e94560';
+  } else {
+    resultKey = 'draw';
+    title = '🤝 引き分け';
+    titleColor = '#eee';
+  }
+
+  document.getElementById('turn-text').textContent = '対局終了';
+
+  // Save to history
+  Storage.saveMatch({
+    difficulty,
+    playerScore: black,
+    cpuScore: white,
+    result: resultKey,
+    durationSec: elapsedSec,
+  });
+
+  // Show overlay
+  const titleEl = document.getElementById('result-title');
+  titleEl.textContent = title;
+  titleEl.style.color = titleColor;
+  document.getElementById('result-score').textContent = `⚫ ${black}  —  ${white} ⚪`;
+
+  const min = Math.floor(elapsedSec / 60);
+  const sec = String(elapsedSec % 60).padStart(2, '0');
+  document.getElementById('result-time').textContent = `対局時間: ${min}:${sec}`;
+
+  setTimeout(() => {
+    document.getElementById('result-overlay').classList.add('show');
+  }, 500);
+}
+
+// ===== Start =====
+init();
+</script>
+
+</body>
+</html>
+
